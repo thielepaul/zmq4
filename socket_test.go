@@ -6,6 +6,7 @@ package zmq4_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -259,4 +260,69 @@ func TestSocketSendSubscriptionOnConnect(t *testing.T) {
 	if string(msg.Frames[0]) != message {
 		t.Fatalf("invalid message received: got '%s', wanted '%s'", msg.Frames[0], message)
 	}
+}
+
+func TestSocketAutomaticReconnect(t *testing.T) {
+	listenEndpoint := "tcp://*:1234"
+	dialEndpoint := "tcp://localhost:1234"
+	message := "test"
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	wg := new(sync.WaitGroup)
+	defer wg.Wait()
+	defer cancel()
+	sendMessages := func(socket zmq4.Socket) {
+		wg.Add(1)
+		go func(t *testing.T) {
+			defer wg.Done()
+			for {
+				socket.Send(zmq4.NewMsgFromString([]string{message}))
+				if ctx.Err() != nil {
+					return
+				}
+				time.Sleep(1 * time.Millisecond)
+			}
+		}(t)
+	}
+
+	sub := zmq4.NewSub(context.Background(), zmq4.WithAutomaticReconnect(true))
+	defer sub.Close()
+	sub.SetOption(zmq4.OptionSubscribe, message)
+	pub := zmq4.NewPub(context.Background())
+	if err := pub.Listen(dialEndpoint); err != nil {
+		t.Fatalf("Pub Dial failed: %v", err)
+	}
+	if err := sub.Dial(listenEndpoint); err != nil {
+		t.Fatalf("Sub Dial failed: %v", err)
+	}
+
+	sendMessages(pub)
+
+	checkConnectionWorking := func(socket zmq4.Socket) {
+		for {
+			msg, err := socket.Recv()
+			if errors.Is(err, io.EOF) {
+				continue
+			}
+			if err != nil {
+				t.Fatalf("Recv failed: %v", err)
+			}
+			if string(msg.Frames[0]) != message {
+				t.Fatalf("invalid message received: got '%s', wanted '%s'", msg.Frames[0], message)
+			}
+			return
+		}
+	}
+
+	checkConnectionWorking(sub)
+	pub.Close()
+
+	pub2 := zmq4.NewPub(context.Background())
+	defer pub2.Close()
+	if err := pub2.Listen(listenEndpoint); err != nil {
+		t.Fatalf("Sub Listen failed: %v", err)
+	}
+	sendMessages(pub2)
+	checkConnectionWorking(sub)
 }

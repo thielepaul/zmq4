@@ -51,6 +51,14 @@ func WithLogger(msg *log.Logger) Option {
 	}
 }
 
+// WithAutomaticReconnect allows to configure a socket to automatically
+// reconnect on connection loss.
+func WithAutomaticReconnect(automaticReconnect bool) Option {
+	return func(s *socket) {
+		s.autoReconnect = automaticReconnect
+	}
+}
+
 /*
 // TODO(sbinet)
 
