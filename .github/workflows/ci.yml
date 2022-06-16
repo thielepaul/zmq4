@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ configurable-number-of-retries-with-ci ]
   pull_request:
     branches: [ main ]
 
