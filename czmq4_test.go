@@ -47,6 +47,7 @@ var (
 		},
 		{
 			name:     "ipc-cpush-cpull",
+			skip:     true,
 			endpoint: "ipc://ipc-cpush-cpull",
 			push:     zmq4.NewCPush(bkg),
 			pull:     zmq4.NewCPull(bkg),
